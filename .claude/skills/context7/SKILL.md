@@ -1,86 +1,65 @@
 ---
 name: context7
-description: Fetch up-to-date library documentation via Context7 API. Use when working with external libraries, frameworks, or APIs to get current documentation beyond training data cutoff.
+description: Fetch up-to-date library documentation via Context7 API. Use when (1) writing code with external libraries/frameworks and need current API docs, (2) uncertain about current API signatures or patterns, (3) setting up or configuring frameworks, (4) need version-specific documentation beyond training data cutoff, (5) verifying best practices for any library. Triggers on questions like "how do I use X library", "what's the current API for Y", or when implementing features with external dependencies.
 ---
 
 # Context7 Documentation Fetcher
 
-Retrieves current, version-specific documentation for any programming library or framework via the Context7 API.
-
-## When to Use
-
-Activate this skill when:
-- Writing code using external libraries/frameworks
-- Seeking current API documentation or references
-- Setting up or configuring frameworks
-- Needing code examples with specific packages
-- Uncertain about current API signatures
-- Verifying best practices for a library
+Retrieves current, version-specific documentation for any programming library or framework.
 
 ## Workflow
 
 ### Step 1: Search for the Library
 
-Find the Context7 library ID:
-
 ```bash
-python3 .claude/skills/context7/scripts/context7.py search "<library-name>"
+python3 scripts/context7.py search "<library-name>"
 ```
 
-**Examples:**
-```bash
-python3 .claude/skills/context7/scripts/context7.py search "next.js"
-python3 .claude/skills/context7/scripts/context7.py search "react"
-python3 .claude/skills/context7/scripts/context7.py search "fastapi"
-```
-
-This returns library metadata including the `id` field needed for Step 2.
+Returns library metadata including the `id` field needed for Step 2.
 
 ### Step 2: Fetch Documentation
 
-Get documentation for your specific query:
-
 ```bash
-python3 .claude/skills/context7/scripts/context7.py context "<library-id>" "<query>"
-```
-
-**Examples:**
-```bash
-python3 .claude/skills/context7/scripts/context7.py context "/vercel/next.js" "app router middleware"
-python3 .claude/skills/context7/scripts/context7.py context "/facebook/react" "useEffect cleanup patterns"
-python3 .claude/skills/context7/scripts/context7.py context "/tiangolo/fastapi" "dependency injection"
+python3 scripts/context7.py context "<library-id>" "<query>"
 ```
 
 **Options:**
 - `--type txt|md` — Output format (default: txt)
 - `--tokens N` — Limit response tokens (default: 5000)
 
+## Examples
+
+**Find and query React:**
+```bash
+python3 scripts/context7.py search "react"
+python3 scripts/context7.py context "/facebook/react" "useEffect cleanup patterns"
+```
+
+**Find and query Next.js:**
+```bash
+python3 scripts/context7.py search "next.js"
+python3 scripts/context7.py context "/vercel/next.js" "app router middleware"
+```
+
+**Find and query FastAPI:**
+```bash
+python3 scripts/context7.py search "fastapi"
+python3 scripts/context7.py context "/tiangolo/fastapi" "dependency injection"
+```
+
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
-| Find React docs | `search "react"` |
-| Get React hooks info | `context "/facebook/react" "hooks useCallback useMemo"` |
-| Find Next.js | `search "next.js"` |
-| Get Next.js routing | `context "/vercel/next.js" "app router dynamic routes"` |
-| Find FastAPI | `search "fastapi"` |
-| Get FastAPI auth | `context "/tiangolo/fastapi" "oauth2 jwt authentication"` |
-| Find Prisma | `search "prisma"` |
-| Get Prisma relations | `context "/prisma/prisma" "relations one to many"` |
+| Library | ID | Example Query |
+|---------|-----|---------------|
+| React | `/facebook/react` | `"hooks useCallback useMemo"` |
+| Next.js | `/vercel/next.js` | `"app router dynamic routes"` |
+| FastAPI | `/tiangolo/fastapi` | `"oauth2 jwt authentication"` |
+| Prisma | `/prisma/prisma` | `"relations one to many"` |
 
-## MCP Server Alternative
+## MCP Alternative
 
-For persistent integration, install Context7 as an MCP server:
+For persistent integration without running scripts:
 
 ```bash
 claude mcp add context7 -- npx -y @upstash/context7-mcp@latest
 ```
-
-Then use `use context7` in prompts to automatically fetch docs.
-
-## Why Use This
-
-- Training data has knowledge cutoffs - this fetches **current** documentation
-- Eliminates hallucinated APIs that no longer exist
-- Gets version-specific information
-- Provides working code examples from official docs
