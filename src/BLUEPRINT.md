@@ -28,11 +28,13 @@
         │   CODE        │ │   RESEARCH    │ │   WRITING     │
         │   AGENT       │ │   AGENT       │ │   AGENT       │
         ├───────────────┤ ├───────────────┤ ├───────────────┤
-        │ Skills:       │ │ Skills:       │ │ Skills:       │
-        │ • write_code  │ │ • web_search  │ │ • draft_doc   │
-        │ • run_tests   │ │ • fetch_docs  │ │ • edit_text   │
-        │ • debug       │ │ • summarize   │ │ • format      │
-        │ • refactor    │ │ • analyze     │ │ • proofread   │
+        │ Uses skill:   │ │ Uses skill:   │ │ Uses skill:   │
+        │ code-         │ │ research-     │ │ writing-      │
+        │ specialist    │ │ specialist    │ │ specialist    │
+        │               │ │               │ │               │
+        │ Script:       │ │ Script:       │ │ Script:       │
+        │ code_ops.py   │ │ research_     │ │ writing_      │
+        │               │ │ ops.py        │ │ ops.py        │
         └───────────────┘ └───────────────┘ └───────────────┘
                 │               │               │
                 └───────────────┼───────────────┘
@@ -278,8 +280,8 @@ Subtask 5: Document API with OpenAPI spec
 src/
 ├── agent/
 │   ├── __init__.py
-│   ├── orchestrator.py      # Main orchestrator agent
-│   ├── specialists/
+│   ├── orchestrator.py       # Main orchestrator agent (has planning tools)
+│   ├── specialists/          # Lightweight agents (no tools, use skills)
 │   │   ├── __init__.py
 │   │   ├── code_agent.py
 │   │   ├── research_agent.py
@@ -287,29 +289,60 @@ src/
 │   │   └── communication_agent.py
 │   └── tools/
 │       ├── __init__.py
-│       ├── planning.py       # Plan/subtask tools
-│       ├── database.py       # DB interaction tools
-│       └── execution.py      # Task execution tools
+│       ├── planning.py       # Orchestrator planning tools
+│       └── database.py       # Orchestrator DB tools
+│
+├── scripts/                  # Executable skill scripts
+│   ├── code_ops.py           # Code operations
+│   ├── research_ops.py       # Research operations
+│   ├── writing_ops.py        # Writing operations
+│   └── comm_ops.py           # Communication operations
 │
 ├── database/
 │   ├── __init__.py
-│   ├── models.py            # SQLAlchemy/Pydantic models
-│   ├── connection.py        # DB connection
-│   └── operations.py        # CRUD operations
+│   ├── models.py             # Pydantic models
+│   ├── connection.py         # SQLite connection
+│   └── operations.py         # CRUD operations
 │
-├── tasks/
-│   ├── __init__.py
-│   ├── manager.py           # Task lifecycle management
-│   └── scheduler.py         # Task scheduling logic
-│
-└── skills/
-    ├── __init__.py
-    └── registry.py          # Skill loading system
+└── data/                     # Runtime data (gitignored)
+    ├── tasks.db              # Task database
+    └── notifications.db      # Notification queue
+
+.claude/skills/               # Skill definitions
+├── code-specialist/SKILL.md
+├── research-specialist/SKILL.md
+├── writing-specialist/SKILL.md
+└── communication-specialist/SKILL.md
 ```
 
 ## Key Design Decisions
 
-### 1. Handoffs vs Agents-as-Tools
+### 1. Skills-Based Architecture (Not Tools)
+
+Specialist agents use **skills and scripts** instead of `@function_tool`:
+
+**Why skills over tools:**
+- Tools load everything into context upfront (wasteful)
+- Skills load on-demand only when needed (efficient)
+- Scripts are standalone executables (testable, debuggable)
+- Progressive disclosure: instructions first, capability when used
+
+**Structure:**
+```
+.claude/skills/
+├── code-specialist/SKILL.md      → src/scripts/code_ops.py
+├── research-specialist/SKILL.md  → src/scripts/research_ops.py
+├── writing-specialist/SKILL.md   → src/scripts/writing_ops.py
+└── communication-specialist/SKILL.md → src/scripts/comm_ops.py
+```
+
+**Execution:**
+```bash
+uv run python src/scripts/code_ops.py analyze <file>
+uv run python src/scripts/writing_ops.py draft <file> -t "Title"
+```
+
+### 2. Handoffs vs Agents-as-Tools
 
 Using **handoffs** for specialist agents because:
 - Specialists need full autonomy to complete subtasks
