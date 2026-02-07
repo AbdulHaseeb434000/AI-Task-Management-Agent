@@ -26,6 +26,12 @@ from .tools.database import (
     log_execution,
     get_subtasks_for_task,
 )
+from .tools.file_ops import (
+    read_file,
+    write_file,
+    append_file,
+    list_files,
+)
 
 # Initialize database
 init_db()
@@ -83,6 +89,14 @@ Your role is to:
 5. COORDINATE handoffs to specialist agents
 6. MONITOR progress and aggregate results
 
+## Core Tools
+
+You have direct file access:
+- `read_file(path)` - Read any file
+- `write_file(path, content)` - Write/create files
+- `append_file(path, content)` - Append to files
+- `list_files(directory, pattern)` - List directory contents
+
 ## Specialist Agents Available
 
 - **Code Agent**: Programming, debugging, testing, code review
@@ -104,11 +118,10 @@ When a user gives you a task:
 
 - Be thorough in planning - identify ALL necessary steps
 - Consider dependencies between steps
-- Assign realistic time estimates
 - Always save to database before proceeding
 - Log important actions for audit trail
 
-Think step-by-step and be methodical in your approach.
+Think step-by-step and be methodical.
 """
 
 
@@ -138,6 +151,11 @@ def create_orchestrator() -> Agent:
             get_subtasks_for_task,
             # Logging
             log_execution,
+            # File operations
+            read_file,
+            write_file,
+            append_file,
+            list_files,
         ],
         handoffs=[
             code_agent,

@@ -1,31 +1,28 @@
-"""Writing Agent - Lightweight specialist that uses writing-specialist skill."""
+"""Writing Agent - Specialist that uses writing-specialist skill with file access."""
 
 from agents import Agent
+from ..tools.file_ops import read_file, write_file, append_file, list_files
 
 
 WRITING_AGENT_INSTRUCTIONS = """You are a Writing Agent specialized in content creation.
 
-## Capabilities
+## Core Tools
 
-Use the writing-specialist skill scripts located at `src/scripts/writing_ops.py`.
+You have direct file access:
+- `read_file(path)` - Read any file
+- `write_file(path, content)` - Write/create files
+- `append_file(path, content)` - Append to files
+- `list_files(directory, pattern)` - List directory contents
 
-### Available Commands
+## Skill Scripts
 
-- **Draft document**: `uv run python src/scripts/writing_ops.py draft <path> -t "Title" --type readme`
+For writing operations, use `src/scripts/writing_ops.py`:
+- **Draft**: `uv run python src/scripts/writing_ops.py draft <path> -t "Title" --type readme`
   Types: readme, api_doc, report, proposal, article
-
-- **Edit content**:
-  - Replace: `uv run python src/scripts/writing_ops.py edit <file> -t replace -f "old" -r "new"`
-  - Append: `uv run python src/scripts/writing_ops.py edit <file> -t append -r "content"`
-  - Prepend: `uv run python src/scripts/writing_ops.py edit <file> -t prepend -r "content"`
-
+- **Edit**: `uv run python src/scripts/writing_ops.py edit <file> -t replace -f "old" -r "new"`
 - **Format**: `uv run python src/scripts/writing_ops.py format <file> -o plain`
-  Outputs: plain, html
-
 - **Proofread**: `uv run python src/scripts/writing_ops.py proofread <file>`
-
 - **Outline**: `uv run python src/scripts/writing_ops.py outline "<topic>" -d 2`
-
 - **Word count**: `uv run python src/scripts/writing_ops.py wordcount <file>`
 
 ## Guidelines
@@ -33,16 +30,11 @@ Use the writing-specialist skill scripts located at `src/scripts/writing_ops.py`
 1. Match tone and style to the audience
 2. Use clear, concise language
 3. Structure content logically
-4. Include examples where helpful
-5. Proofread before delivering
+4. Proofread before delivering
 
 ## When Done
 
-Report back with:
-- Document created/modified
-- Word count
-- Summary of content
-- Any assumptions made
+Report: document created/modified, word count, summary.
 """
 
 
@@ -52,6 +44,7 @@ def create_writing_agent() -> Agent:
         name="Writing Agent",
         instructions=WRITING_AGENT_INSTRUCTIONS,
         model="gpt-4o",
+        tools=[read_file, write_file, append_file, list_files],
     )
 
 

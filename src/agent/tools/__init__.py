@@ -14,6 +14,12 @@ from .database import (
     get_subtasks_for_task,
     log_execution,
 )
+from .file_ops import (
+    read_file,
+    write_file,
+    append_file,
+    list_files,
+)
 
 __all__ = [
     # Planning tools
@@ -28,4 +34,9 @@ __all__ = [
     "get_task_by_id",
     "get_subtasks_for_task",
     "log_execution",
+    # File tools
+    "read_file",
+    "write_file",
+    "append_file",
+    "list_files",
 ]
