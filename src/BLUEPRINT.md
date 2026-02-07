@@ -281,7 +281,7 @@ src/
 ├── agent/
 │   ├── __init__.py
 │   ├── orchestrator.py       # Main orchestrator agent (has planning tools)
-│   ├── specialists/          # Lightweight agents (no tools, use skills)
+│   ├── specialists/          # Lightweight agents (have file tools, use skills)
 │   │   ├── __init__.py
 │   │   ├── code_agent.py
 │   │   ├── research_agent.py
@@ -290,13 +290,8 @@ src/
 │   └── tools/
 │       ├── __init__.py
 │       ├── planning.py       # Orchestrator planning tools
-│       └── database.py       # Orchestrator DB tools
-│
-├── scripts/                  # Executable skill scripts
-│   ├── code_ops.py           # Code operations
-│   ├── research_ops.py       # Research operations
-│   ├── writing_ops.py        # Writing operations
-│   └── comm_ops.py           # Communication operations
+│       ├── database.py       # Orchestrator DB tools
+│       └── file_ops.py       # File operations (read/write)
 │
 ├── database/
 │   ├── __init__.py
@@ -308,11 +303,19 @@ src/
     ├── tasks.db              # Task database
     └── notifications.db      # Notification queue
 
-.claude/skills/               # Skill definitions
-├── code-specialist/SKILL.md
-├── research-specialist/SKILL.md
-├── writing-specialist/SKILL.md
-└── communication-specialist/SKILL.md
+.claude/skills/               # Skills with bundled scripts
+├── code-specialist/
+│   ├── SKILL.md
+│   └── scripts/code_ops.py
+├── research-specialist/
+│   ├── SKILL.md
+│   └── scripts/research_ops.py
+├── writing-specialist/
+│   ├── SKILL.md
+│   └── scripts/writing_ops.py
+└── communication-specialist/
+    ├── SKILL.md
+    └── scripts/comm_ops.py
 ```
 
 ## Key Design Decisions
@@ -330,16 +333,19 @@ Specialist agents use **skills and scripts** instead of `@function_tool`:
 **Structure:**
 ```
 .claude/skills/
-├── code-specialist/SKILL.md      → src/scripts/code_ops.py
-├── research-specialist/SKILL.md  → src/scripts/research_ops.py
-├── writing-specialist/SKILL.md   → src/scripts/writing_ops.py
-└── communication-specialist/SKILL.md → src/scripts/comm_ops.py
+├── code-specialist/
+│   ├── SKILL.md
+│   └── scripts/code_ops.py
+├── research-specialist/
+│   ├── SKILL.md
+│   └── scripts/research_ops.py
+└── ...
 ```
 
 **Execution:**
 ```bash
-uv run python src/scripts/code_ops.py analyze <file>
-uv run python src/scripts/writing_ops.py draft <file> -t "Title"
+uv run python .claude/skills/code-specialist/scripts/code_ops.py analyze <file>
+uv run python .claude/skills/writing-specialist/scripts/writing_ops.py draft <file> -t "Title"
 ```
 
 ### 2. Handoffs vs Agents-as-Tools

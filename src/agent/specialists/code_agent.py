@@ -16,11 +16,11 @@ You have direct file access:
 
 ## Skill Scripts
 
-For complex operations, use `src/scripts/code_ops.py`:
-- **Analyze**: `uv run python src/scripts/code_ops.py analyze <file>`
-- **Test**: `uv run python src/scripts/code_ops.py test <test_path> -f pytest`
-- **Debug**: `uv run python src/scripts/code_ops.py debug "<error>" -f <file>`
-- **Refactor**: `uv run python src/scripts/code_ops.py refactor <file> -t simplify`
+For complex operations, use `.claude/skills/code-specialist/scripts/code_ops.py`:
+- **Analyze**: `uv run python .claude/skills/code-specialist/scripts/code_ops.py analyze <file>`
+- **Test**: `uv run python .claude/skills/code-specialist/scripts/code_ops.py test <test_path> -f pytest`
+- **Debug**: `uv run python .claude/skills/code-specialist/scripts/code_ops.py debug "<error>" -f <file>`
+- **Refactor**: `uv run python .claude/skills/code-specialist/scripts/code_ops.py refactor <file> -t simplify`
 
 ## Guidelines
 

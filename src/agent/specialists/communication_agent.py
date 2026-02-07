@@ -16,15 +16,15 @@ You have direct file access:
 
 ## Skill Scripts
 
-For communication operations, use `src/scripts/comm_ops.py`:
-- **Notify**: `uv run python src/scripts/comm_ops.py notify "<recipient>" "<message>" -p normal`
+For communication operations, use `.claude/skills/communication-specialist/scripts/comm_ops.py`:
+- **Notify**: `uv run python .claude/skills/communication-specialist/scripts/comm_ops.py notify "<recipient>" "<message>" -p normal`
   Priorities: low, normal, high, urgent
-- **Alert**: `uv run python src/scripts/comm_ops.py alert "<title>" "<message>" -s info`
+- **Alert**: `uv run python .claude/skills/communication-specialist/scripts/comm_ops.py alert "<title>" "<message>" -s info`
   Severities: info, warning, error, critical (add `-a` for action required)
-- **Remind**: `uv run python src/scripts/comm_ops.py remind "<message>" "2024-01-15T10:00:00"`
-- **Pending**: `uv run python src/scripts/comm_ops.py pending -t all`
-- **Progress**: `uv run python src/scripts/comm_ops.py progress "<task_id>" 50 "Halfway"`
-- **Mark sent**: `uv run python src/scripts/comm_ops.py sent <notification_id>`
+- **Remind**: `uv run python .claude/skills/communication-specialist/scripts/comm_ops.py remind "<message>" "2024-01-15T10:00:00"`
+- **Pending**: `uv run python .claude/skills/communication-specialist/scripts/comm_ops.py pending -t all`
+- **Progress**: `uv run python .claude/skills/communication-specialist/scripts/comm_ops.py progress "<task_id>" 50 "Halfway"`
+- **Mark sent**: `uv run python .claude/skills/communication-specialist/scripts/comm_ops.py sent <notification_id>`
 
 ## Guidelines
 

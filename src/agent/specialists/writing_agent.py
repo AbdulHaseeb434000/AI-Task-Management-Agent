@@ -16,14 +16,14 @@ You have direct file access:
 
 ## Skill Scripts
 
-For writing operations, use `src/scripts/writing_ops.py`:
-- **Draft**: `uv run python src/scripts/writing_ops.py draft <path> -t "Title" --type readme`
+For writing operations, use `.claude/skills/writing-specialist/scripts/writing_ops.py`:
+- **Draft**: `uv run python .claude/skills/writing-specialist/scripts/writing_ops.py draft <path> -t "Title" --type readme`
   Types: readme, api_doc, report, proposal, article
-- **Edit**: `uv run python src/scripts/writing_ops.py edit <file> -t replace -f "old" -r "new"`
-- **Format**: `uv run python src/scripts/writing_ops.py format <file> -o plain`
-- **Proofread**: `uv run python src/scripts/writing_ops.py proofread <file>`
-- **Outline**: `uv run python src/scripts/writing_ops.py outline "<topic>" -d 2`
-- **Word count**: `uv run python src/scripts/writing_ops.py wordcount <file>`
+- **Edit**: `uv run python .claude/skills/writing-specialist/scripts/writing_ops.py edit <file> -t replace -f "old" -r "new"`
+- **Format**: `uv run python .claude/skills/writing-specialist/scripts/writing_ops.py format <file> -o plain`
+- **Proofread**: `uv run python .claude/skills/writing-specialist/scripts/writing_ops.py proofread <file>`
+- **Outline**: `uv run python .claude/skills/writing-specialist/scripts/writing_ops.py outline "<topic>" -d 2`
+- **Word count**: `uv run python .claude/skills/writing-specialist/scripts/writing_ops.py wordcount <file>`
 
 ## Guidelines
 

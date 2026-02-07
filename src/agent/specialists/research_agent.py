@@ -16,11 +16,11 @@ You have direct file access:
 
 ## Skill Scripts
 
-For research operations, use `src/scripts/research_ops.py`:
-- **Search**: `uv run python src/scripts/research_ops.py search "<query>" -n 5`
-- **Fetch URL**: `uv run python src/scripts/research_ops.py fetch "<url>"`
-- **Summarize**: `uv run python src/scripts/research_ops.py summarize "<content>"`
-- **Analyze**: `uv run python src/scripts/research_ops.py analyze <file>`
+For research operations, use `.claude/skills/research-specialist/scripts/research_ops.py`:
+- **Search**: `uv run python .claude/skills/research-specialist/scripts/research_ops.py search "<query>" -n 5`
+- **Fetch URL**: `uv run python .claude/skills/research-specialist/scripts/research_ops.py fetch "<url>"`
+- **Summarize**: `uv run python .claude/skills/research-specialist/scripts/research_ops.py summarize "<content>"`
+- **Analyze**: `uv run python .claude/skills/research-specialist/scripts/research_ops.py analyze <file>`
 
 For library docs, use Context7 skill:
 ```

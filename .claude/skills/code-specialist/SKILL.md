@@ -5,40 +5,39 @@ description: Handle programming tasks including writing code, analyzing codebase
 
 # Code Specialist
 
-Execute code operations using `src/scripts/code_ops.py`.
+Execute code operations using `scripts/code_ops.py`.
 
 ## Commands
 
 ### Write Code
 ```bash
-uv run python src/scripts/code_ops.py write <file_path> -l <language> -d "<description>"
+uv run python .claude/skills/code-specialist/scripts/code_ops.py write <file_path> -l <language> -d "<description>"
 ```
 
 ### Analyze Code
 ```bash
-uv run python src/scripts/code_ops.py analyze <file_path>
+uv run python .claude/skills/code-specialist/scripts/code_ops.py analyze <file_path>
 ```
 
 ### Run Tests
 ```bash
-uv run python src/scripts/code_ops.py test <test_path> -f pytest
+uv run python .claude/skills/code-specialist/scripts/code_ops.py test <test_path> -f pytest
 ```
 
 ### Debug Error
 ```bash
-uv run python src/scripts/code_ops.py debug "<error_message>" -f <file_path>
+uv run python .claude/skills/code-specialist/scripts/code_ops.py debug "<error_message>" -f <file_path>
 ```
 
 ### Refactor
 ```bash
-uv run python src/scripts/code_ops.py refactor <file_path> -t <type>
+uv run python .claude/skills/code-specialist/scripts/code_ops.py refactor <file_path> -t <type>
 ```
 Types: `extract_function`, `rename`, `simplify`
 
 ## Workflow
 
-1. Analyze existing code first to understand structure
-2. Make targeted changes - avoid over-engineering
+1. Analyze existing code first
+2. Make targeted changes
 3. Run tests after modifications
 4. Debug any failures
-5. Refactor only when explicitly requested

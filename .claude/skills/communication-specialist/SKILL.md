@@ -5,48 +5,43 @@ description: Handle notifications, alerts, and reminders. Use when the task invo
 
 # Communication Specialist
 
-Execute communication operations using `src/scripts/comm_ops.py`.
+Execute communication operations using `scripts/comm_ops.py`.
 
 ## Commands
 
 ### Send Notification
 ```bash
-uv run python src/scripts/comm_ops.py notify "<recipient>" "<message>" -p <priority> -c <channel>
+uv run python .claude/skills/communication-specialist/scripts/comm_ops.py notify "<recipient>" "<message>" -p <priority>
 ```
 Priorities: `low`, `normal`, `high`, `urgent`
 
 ### Send Alert
 ```bash
-uv run python src/scripts/comm_ops.py alert "<title>" "<message>" -s <severity>
-uv run python src/scripts/comm_ops.py alert "<title>" "<message>" -s error -a  # action required
+uv run python .claude/skills/communication-specialist/scripts/comm_ops.py alert "<title>" "<message>" -s <severity>
 ```
-Severities: `info`, `warning`, `error`, `critical`
+Severities: `info`, `warning`, `error`, `critical` (add `-a` for action required)
 
 ### Schedule Reminder
 ```bash
-uv run python src/scripts/comm_ops.py remind "<message>" "<scheduled_for>" -t <task_id>
-uv run python src/scripts/comm_ops.py remind "Check status" "2024-01-15T10:00:00" -r daily
+uv run python .claude/skills/communication-specialist/scripts/comm_ops.py remind "<message>" "<scheduled_for>" -t <task_id>
 ```
 
 ### View Pending Items
 ```bash
-uv run python src/scripts/comm_ops.py pending -t all
-uv run python src/scripts/comm_ops.py pending -t notifications
-uv run python src/scripts/comm_ops.py pending -t reminders
+uv run python .claude/skills/communication-specialist/scripts/comm_ops.py pending -t all
 ```
 
 ### Format Progress Update
 ```bash
-uv run python src/scripts/comm_ops.py progress "<task_id>" <percent> "<status_message>"
+uv run python .claude/skills/communication-specialist/scripts/comm_ops.py progress "<task_id>" <percent> "<message>"
 ```
 
 ### Mark as Sent
 ```bash
-uv run python src/scripts/comm_ops.py sent <notification_id>
+uv run python .claude/skills/communication-specialist/scripts/comm_ops.py sent <notification_id>
 ```
 
 ## Notes
 
 - Notifications are queued, not sent immediately
-- Critical alerts should be used sparingly
-- All actions are logged for audit trail
+- All actions logged for audit trail
