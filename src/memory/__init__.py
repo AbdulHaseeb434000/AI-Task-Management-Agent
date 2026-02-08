@@ -7,6 +7,7 @@ from src.memory.hot import HotMemory, HotMemoryState
 from src.memory.warm import WarmMemory, WarmMemoryResult
 from src.memory.cold import ColdMemory
 from src.memory.manager import MemoryManager, get_memory_manager
+from src.memory.embeddings import EmbeddingService, get_embedding_service, SimilarityMatch
 
 __all__ = [
     # Hot memory
@@ -20,4 +21,8 @@ __all__ = [
     # Manager
     "MemoryManager",
     "get_memory_manager",
+    # Embeddings
+    "EmbeddingService",
+    "get_embedding_service",
+    "SimilarityMatch",
 ]

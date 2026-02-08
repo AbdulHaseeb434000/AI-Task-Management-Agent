@@ -6,12 +6,9 @@ from typing import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
-from main import app
 from src.database.orm import Base, User
-from src.database.connection import get_session
 
 
 # Use in-memory SQLite for tests (faster, no external dependencies)
@@ -59,8 +56,13 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
+async def client(test_engine) -> AsyncGenerator:
     """Create an async test client."""
+    # Lazy import to avoid loading orchestrator at conftest load time
+    from httpx import AsyncClient, ASGITransport
+    from main import app
+    from src.database.connection import get_session
+
     # Override the dependency
     async_session = async_sessionmaker(
         bind=test_engine,

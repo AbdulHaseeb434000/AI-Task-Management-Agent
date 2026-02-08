@@ -99,7 +99,7 @@ class TaskGraph:
                 dependencies=[],  # Will be loaded from junction table
                 tags=task.tags or [],
                 created_at=task.created_at,
-                metadata=task.metadata or {},
+                metadata=task.task_metadata or {},
             )
             self.add_node(node)
 

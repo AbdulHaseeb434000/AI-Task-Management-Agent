@@ -7,9 +7,10 @@ Loaded when relevant to current query. Contains:
 - Related context for current task
 """
 
+import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass, field
 
 from sqlalchemy import select, and_, or_, func
@@ -18,6 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.settings import get_settings
 from src.database.orm import Task, TaskStatus, Memory
 from src.database.connection import get_async_session
+from src.memory.embeddings import get_embedding_service, SimilarityMatch
+
+logger = logging.getLogger(__name__)
 
 
 # Memory type constants
@@ -53,7 +57,7 @@ class WarmMemory:
 
     Retrieves relevant context when needed, including:
     - Recent tasks
-    - Semantically related history
+    - Semantically related history (via embeddings)
     - User behavior patterns
     """
 
@@ -61,15 +65,19 @@ class WarmMemory:
         self,
         max_items: int = None,
         lookback_days: int = 7,
+        semantic_min_score: float = 0.6,
     ):
         """Initialize warm memory.
 
         Args:
             max_items: Maximum items to retrieve.
             lookback_days: Days to look back for recent items.
+            semantic_min_score: Minimum score for semantic matches.
         """
         self.max_items = max_items or settings.warm_memory_max_items
         self.lookback_days = lookback_days
+        self.semantic_min_score = semantic_min_score
+        self._embedding_service = get_embedding_service()
 
     async def retrieve(
         self,
@@ -173,7 +181,10 @@ class WarmMemory:
         query: Optional[str],
         task_id: Optional[uuid.UUID],
     ) -> List[Dict[str, Any]]:
-        """Get tasks related to a query or task.
+        """Get tasks related to a query or task using semantic search.
+
+        Uses embeddings for semantic similarity when available,
+        falls back to keyword matching otherwise.
 
         Args:
             session: Database session.
@@ -182,53 +193,233 @@ class WarmMemory:
             task_id: Optional related task ID.
 
         Returns:
-            List of related task dictionaries.
+            List of related task dictionaries with relevance scores.
+        """
+        related = []
+        semantic_matches: List[Dict[str, Any]] = []
+
+        # Build search text from query and/or task
+        search_text = query or ""
+        if task_id:
+            source_task = await session.get(Task, task_id)
+            if source_task:
+                search_text = f"{source_task.title} {source_task.description or ''} {search_text}"
+
+                # Also get tag-based and structural matches
+                related.extend(await self._get_structural_matches(
+                    session, user_id, source_task
+                ))
+
+        # Try semantic search first
+        if search_text and self._embedding_service.enabled:
+            semantic_matches = await self._semantic_task_search(
+                session, user_id, search_text, exclude_id=task_id
+            )
+
+        # Fall back to keyword search if no semantic results
+        if not semantic_matches:
+            related.extend(await self._keyword_task_search(
+                session, user_id, query, task_id
+            ))
+
+        # Merge results, preferring semantic matches
+        seen_ids = set()
+        unique_related = []
+
+        # Add semantic matches first (higher quality)
+        for match in semantic_matches:
+            task_id_str = match["id"]
+            if task_id_str not in seen_ids:
+                seen_ids.add(task_id_str)
+                unique_related.append(match)
+
+        # Add other matches
+        for task in related:
+            task_id_str = str(task.id) if hasattr(task, 'id') else task.get("id")
+            if task_id_str not in seen_ids:
+                seen_ids.add(task_id_str)
+                if hasattr(task, 'id'):
+                    unique_related.append({
+                        "id": str(task.id),
+                        "title": task.title,
+                        "status": task.status.value,
+                        "priority": task.priority,
+                        "tags": task.tags,
+                        "relevance": 0.5,  # Default score for non-semantic
+                    })
+                else:
+                    unique_related.append(task)
+
+        return unique_related[:15]
+
+    async def _semantic_task_search(
+        self,
+        session: AsyncSession,
+        user_id: uuid.UUID,
+        search_text: str,
+        exclude_id: Optional[uuid.UUID] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search tasks using semantic embeddings.
+
+        Args:
+            session: Database session.
+            user_id: The user's ID.
+            search_text: Text to search for.
+            exclude_id: Optional task ID to exclude.
+
+        Returns:
+            List of semantically similar tasks with scores.
+        """
+        # Generate embedding for search text
+        query_embedding = await self._embedding_service.embed_text(search_text)
+        if not query_embedding:
+            return []
+
+        # Get all user's tasks (could be optimized with pgvector)
+        stmt = (
+            select(Task)
+            .where(
+                Task.user_id == user_id,
+                Task.deleted_at.is_(None),
+            )
+            .limit(100)  # Limit candidates for performance
+        )
+        if exclude_id:
+            stmt = stmt.where(Task.id != exclude_id)
+
+        result = await session.execute(stmt)
+        tasks = result.scalars().all()
+
+        # Build candidate list with embeddings
+        candidates = []
+        tasks_needing_embeddings = []
+
+        for task in tasks:
+            task_text = f"{task.title} {task.description or ''}"
+
+            # Check if task has embedding in memory (via Memory table)
+            # For now, calculate embeddings on the fly
+            # In production, store embeddings in a separate column or table
+            tasks_needing_embeddings.append((task, task_text))
+
+        # Batch embed task texts
+        if tasks_needing_embeddings:
+            texts = [t[1] for t in tasks_needing_embeddings]
+            embeddings = await self._embedding_service.embed_batch(texts)
+
+            for i, (task, task_text) in enumerate(tasks_needing_embeddings):
+                if embeddings[i]:
+                    candidates.append((
+                        str(task.id),
+                        task_text,
+                        embeddings[i],
+                        {"task": task}
+                    ))
+
+        # Find similar tasks
+        matches = self._embedding_service.find_similar(
+            query_embedding,
+            candidates,
+            top_k=10,
+            min_score=self.semantic_min_score,
+        )
+
+        # Format results
+        results = []
+        for match in matches:
+            task = match.metadata.get("task")
+            if task:
+                results.append({
+                    "id": str(task.id),
+                    "title": task.title,
+                    "status": task.status.value,
+                    "priority": task.priority,
+                    "tags": task.tags,
+                    "relevance": round(match.score, 3),
+                })
+
+        return results
+
+    async def _get_structural_matches(
+        self,
+        session: AsyncSession,
+        user_id: uuid.UUID,
+        source_task: Task,
+    ) -> List[Task]:
+        """Get tasks related by structure (tags, parent/child).
+
+        Args:
+            session: Database session.
+            user_id: The user's ID.
+            source_task: The source task.
+
+        Returns:
+            List of structurally related tasks.
+        """
+        related = []
+
+        # Find tasks with similar tags
+        if source_task.tags:
+            result = await session.execute(
+                select(Task)
+                .where(
+                    Task.user_id == user_id,
+                    Task.id != source_task.id,
+                    Task.deleted_at.is_(None),
+                    Task.tags.overlap(source_task.tags),
+                )
+                .limit(10)
+            )
+            related.extend(result.scalars().all())
+
+        # Find parent task
+        if source_task.parent_id:
+            parent = await session.get(Task, source_task.parent_id)
+            if parent:
+                related.append(parent)
+
+        return related
+
+    async def _keyword_task_search(
+        self,
+        session: AsyncSession,
+        user_id: uuid.UUID,
+        query: Optional[str],
+        task_id: Optional[uuid.UUID],
+    ) -> List[Task]:
+        """Fallback keyword-based task search.
+
+        Args:
+            session: Database session.
+            user_id: The user's ID.
+            query: Optional search query.
+            task_id: Optional task ID for context.
+
+        Returns:
+            List of matching tasks.
         """
         related = []
 
         if task_id:
-            # Get the source task
             source_task = await session.get(Task, task_id)
             if source_task:
-                # Find tasks with similar tags
-                if source_task.tags:
-                    result = await session.execute(
-                        select(Task)
-                        .where(
-                            Task.user_id == user_id,
-                            Task.id != task_id,
-                            Task.deleted_at.is_(None),
-                            Task.tags.overlap(source_task.tags),
-                        )
-                        .limit(10)
-                    )
-                    related.extend(result.scalars().all())
-
-                # Find subtasks and parent
-                if source_task.parent_id:
-                    parent = await session.get(Task, source_task.parent_id)
-                    if parent:
-                        related.append(parent)
-
                 # Find tasks with similar title keywords
                 title_words = source_task.title.lower().split()[:3]
-                if title_words:
-                    for word in title_words:
-                        if len(word) > 3:  # Skip short words
-                            result = await session.execute(
-                                select(Task)
-                                .where(
-                                    Task.user_id == user_id,
-                                    Task.id != task_id,
-                                    Task.deleted_at.is_(None),
-                                    Task.title.ilike(f"%{word}%"),
-                                )
-                                .limit(5)
+                for word in title_words:
+                    if len(word) > 3:
+                        result = await session.execute(
+                            select(Task)
+                            .where(
+                                Task.user_id == user_id,
+                                Task.id != task_id,
+                                Task.deleted_at.is_(None),
+                                Task.title.ilike(f"%{word}%"),
                             )
-                            related.extend(result.scalars().all())
+                            .limit(5)
+                        )
+                        related.extend(result.scalars().all())
 
         if query:
-            # Simple keyword search
             keywords = query.lower().split()
             for keyword in keywords[:3]:
                 if len(keyword) > 2:
@@ -246,23 +437,7 @@ class WarmMemory:
                     )
                     related.extend(result.scalars().all())
 
-        # Deduplicate and limit
-        seen_ids = set()
-        unique_related = []
-        for task in related:
-            if task.id not in seen_ids:
-                seen_ids.add(task.id)
-                unique_related.append({
-                    "id": str(task.id),
-                    "title": task.title,
-                    "status": task.status.value,
-                    "priority": task.priority,
-                    "tags": task.tags,
-                })
-                if len(unique_related) >= 15:
-                    break
-
-        return unique_related
+        return related
 
     async def _get_user_patterns(
         self,
@@ -339,7 +514,9 @@ class WarmMemory:
         user_id: uuid.UUID,
         query: Optional[str],
     ) -> List[Dict[str, Any]]:
-        """Get stored context/memory items.
+        """Get stored context/memory items using semantic search.
+
+        Uses embeddings for relevance when available.
 
         Args:
             session: Database session.
@@ -347,11 +524,11 @@ class WarmMemory:
             query: Optional search query.
 
         Returns:
-            List of context items.
+            List of context items with relevance scores.
         """
         items = []
 
-        # Get recent memories
+        # Get memories that might be relevant
         stmt = (
             select(Memory)
             .where(
@@ -363,19 +540,121 @@ class WarmMemory:
                 ]),
             )
             .order_by(Memory.created_at.desc())
-            .limit(10)
+            .limit(50)  # Get more to filter semantically
         )
         result = await session.execute(stmt)
         memories = result.scalars().all()
 
-        for memory in memories:
-            items.append({
-                "type": memory.memory_type.value,
-                "content": memory.content[:500],  # Truncate
-                "created_at": memory.created_at.isoformat(),
-            })
+        # If we have a query, use semantic search
+        if query and self._embedding_service.enabled and memories:
+            items = await self._semantic_memory_search(query, memories)
+        else:
+            # Fall back to recent memories
+            for memory in memories[:10]:
+                items.append({
+                    "id": str(memory.id),
+                    "type": memory.memory_type,
+                    "content": memory.content[:500],
+                    "created_at": memory.created_at.isoformat(),
+                    "relevance": 1.0,
+                })
 
         return items
+
+    async def _semantic_memory_search(
+        self,
+        query: str,
+        memories: List[Memory],
+    ) -> List[Dict[str, Any]]:
+        """Search memories using semantic embeddings.
+
+        Args:
+            query: Search query.
+            memories: List of Memory objects to search.
+
+        Returns:
+            List of relevant memories with scores.
+        """
+        # Generate query embedding
+        query_embedding = await self._embedding_service.embed_text(query)
+        if not query_embedding:
+            # Fall back to recent
+            return [
+                {
+                    "id": str(m.id),
+                    "type": m.memory_type,
+                    "content": m.content[:500],
+                    "created_at": m.created_at.isoformat(),
+                    "relevance": 1.0,
+                }
+                for m in memories[:10]
+            ]
+
+        # Check for stored embeddings or compute new ones
+        candidates = []
+        memories_need_embedding = []
+
+        for memory in memories:
+            if memory.embedding:
+                # Use stored embedding
+                candidates.append((
+                    str(memory.id),
+                    memory.content,
+                    memory.embedding,
+                    {"memory": memory}
+                ))
+            else:
+                memories_need_embedding.append(memory)
+
+        # Batch embed memories without embeddings
+        if memories_need_embedding:
+            texts = [m.content for m in memories_need_embedding]
+            embeddings = await self._embedding_service.embed_batch(texts)
+
+            for i, memory in enumerate(memories_need_embedding):
+                if embeddings[i]:
+                    candidates.append((
+                        str(memory.id),
+                        memory.content,
+                        embeddings[i],
+                        {"memory": memory}
+                    ))
+
+        # Find similar memories
+        matches = self._embedding_service.find_similar(
+            query_embedding,
+            candidates,
+            top_k=10,
+            min_score=0.5,  # Lower threshold for memories
+        )
+
+        # Format results
+        results = []
+        for match in matches:
+            memory = match.metadata.get("memory")
+            if memory:
+                results.append({
+                    "id": str(memory.id),
+                    "type": memory.memory_type,
+                    "content": memory.content[:500],
+                    "created_at": memory.created_at.isoformat(),
+                    "relevance": round(match.score, 3),
+                })
+
+        # If no semantic matches, include some recent ones
+        if not results:
+            results = [
+                {
+                    "id": str(m.id),
+                    "type": m.memory_type,
+                    "content": m.content[:500],
+                    "created_at": m.created_at.isoformat(),
+                    "relevance": 0.5,
+                }
+                for m in memories[:5]
+            ]
+
+        return results
 
     def _estimate_tokens(self, result: WarmMemoryResult) -> int:
         """Estimate tokens for the result.

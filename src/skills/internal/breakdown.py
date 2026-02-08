@@ -263,9 +263,9 @@ class BreakdownSkill(BaseSkill):
             })
 
         # Update parent task status to indicate it has subtasks
-        parent_task.metadata = parent_task.metadata or {}
-        parent_task.metadata["has_subtasks"] = True
-        parent_task.metadata["subtask_count"] = len(created_subtasks)
+        parent_task.task_metadata = parent_task.task_metadata or {}
+        parent_task.task_metadata["has_subtasks"] = True
+        parent_task.task_metadata["subtask_count"] = len(created_subtasks)
 
         await session.flush()
 

@@ -133,7 +133,7 @@ class Task(Base):
 
     # Organization
     tags: Mapped[list] = mapped_column(ARRAY(String), default=list)
-    metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    task_metadata: Mapped[dict] = mapped_column(JSON, default=dict)  # Renamed from 'metadata' (reserved)
 
     # Results
     result: Mapped[str] = mapped_column(Text, nullable=True)

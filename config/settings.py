@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     # Agent
     default_model: str = "gpt-4o"
+    openai_api_key: str = ""
     max_retries: int = 3
     retry_backoff_seconds: float = 2.0
 
