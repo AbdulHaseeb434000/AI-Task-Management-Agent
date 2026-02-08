@@ -11,6 +11,7 @@ import asyncio
 import importlib
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Type
@@ -268,7 +269,7 @@ class SkillRegistry:
         name: str,
         context: SkillContext,
     ) -> SkillResult:
-        """Execute a skill with error handling and timeout.
+        """Execute a skill with error handling, timeout, and audit logging.
 
         Args:
             name: Skill name
@@ -302,17 +303,17 @@ class SkillRegistry:
 
         # Execute with timeout
         start_time = time.time()
+        result = None
         try:
             result = await asyncio.wait_for(
                 skill.execute(context),
                 timeout=registered.manifest.timeout_ms / 1000,
             )
             result.duration_ms = int((time.time() - start_time) * 1000)
-            return result
 
         except asyncio.TimeoutError:
             registered.error_count += 1
-            return SkillResult(
+            result = SkillResult(
                 success=False,
                 error=f"Skill execution timed out after {registered.manifest.timeout_ms}ms",
                 duration_ms=registered.manifest.timeout_ms,
@@ -322,11 +323,68 @@ class SkillRegistry:
             registered.error_count += 1
             duration_ms = int((time.time() - start_time) * 1000)
             logger.exception(f"Skill {name} execution failed: {e}")
-            return SkillResult(
+            result = SkillResult(
                 success=False,
                 error=str(e),
                 duration_ms=duration_ms,
             )
+
+        # Log skill execution to audit log
+        await self._log_skill_execution(name, context, result)
+
+        return result
+
+    async def _log_skill_execution(
+        self,
+        skill_name: str,
+        context: SkillContext,
+        result: SkillResult,
+    ) -> None:
+        """Log skill execution to the audit log.
+
+        Args:
+            skill_name: Name of the executed skill.
+            context: Execution context.
+            result: Execution result.
+        """
+        try:
+            # Import here to avoid circular imports
+            from src.audit.logger import get_audit_logger
+            from src.database.orm import EventType
+
+            audit_logger = get_audit_logger()
+
+            # Get user_id from context
+            user_id = None
+            if context.user_id:
+                try:
+                    user_id = uuid.UUID(context.user_id)
+                except (ValueError, TypeError):
+                    pass
+
+            if user_id:
+                session_id = None
+                if context.session_id:
+                    try:
+                        session_id = uuid.UUID(context.session_id)
+                    except (ValueError, TypeError):
+                        pass
+
+                await audit_logger.log_skill_executed(
+                    user_id=user_id,
+                    skill_name=skill_name,
+                    parameters=context.parameters,
+                    result={
+                        "success": result.success,
+                        "error": result.error,
+                        "duration_ms": result.duration_ms,
+                        "data_keys": list(result.data.keys()) if result.data else [],
+                    },
+                    session_id=session_id,
+                )
+        except Exception as e:
+            # Don't let audit logging failures break skill execution
+            logger.warning(f"Failed to log skill execution to audit: {e}")
 
     def get_manifest(self, name: str) -> Optional[SkillManifest]:
         """Get a skill's manifest.

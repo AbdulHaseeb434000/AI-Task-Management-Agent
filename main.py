@@ -10,6 +10,9 @@ from config.settings import get_settings
 from src.api import router
 from src.database.connection import async_engine, init_db
 from src.skills.registry import get_registry
+from src.reminders.engine import get_reminder_engine
+from src.reminders.dispatcher import get_dispatcher
+from src.approvals.queue import get_approval_queue
 
 
 settings = get_settings()
@@ -32,12 +35,39 @@ async def lifespan(app: FastAPI):
     skill_count = len(registry.list_skills())
     print(f"Loaded {skill_count} skills.")
 
+    # Initialize and start reminder engine
+    print("Starting reminder engine...")
+    reminder_engine = get_reminder_engine()
+    dispatcher = get_dispatcher()
+
+    # Register notification dispatcher as handler for reminder events
+    async def handle_reminder(event):
+        await dispatcher.dispatch(event)
+
+    reminder_engine.register_handler(handle_reminder)
+    await reminder_engine.start()
+    print("Reminder engine started.")
+
+    # Initialize approval queue
+    approval_queue = get_approval_queue()
+    print("Approval queue initialized.")
+
     print("AI Task Management Agent ready!")
 
     yield
 
     # Shutdown
     print("Shutting down AI Task Management Agent...")
+
+    # Stop reminder engine
+    print("Stopping reminder engine...")
+    await reminder_engine.stop()
+
+    # Cleanup expired approvals
+    expired = await approval_queue.cleanup_expired()
+    if expired:
+        print(f"Cleaned up {expired} expired approvals.")
+
     await async_engine.dispose()
     print("Shutdown complete.")
 
