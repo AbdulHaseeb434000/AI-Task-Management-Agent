@@ -174,8 +174,8 @@ class TaskGraph:
         if node.parent_id:
             self._children[node.parent_id].discard(task_id)
 
-        # Remove own children tracking
-        del self._children[task_id]
+        # Remove own children tracking (use pop to avoid KeyError)
+        self._children.pop(task_id, None)
 
         del self.nodes[task_id]
 
