@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Authentication
+    jwt_secret_key: str = "change-me-in-production-use-long-random-string"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+
     # Agent
     default_model: str = "gpt-4o"
     openai_api_key: str = ""
@@ -55,6 +61,26 @@ class Settings(BaseSettings):
     sandbox_enabled: bool = False
     sandbox_timeout_ms: int = 30000
     sandbox_memory_mb: int = 512
+
+    # Email (SMTP)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+
+    # Email (SendGrid)
+    sendgrid_api_key: str = ""
+    sendgrid_from_email: str = ""
+
+    # SMS (Twilio)
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""
+
+    # Push (Firebase)
+    firebase_credentials_path: str = ""
+    firebase_project_id: str = ""
 
     class Config:
         env_file = ".env"

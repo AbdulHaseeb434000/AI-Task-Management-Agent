@@ -87,6 +87,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
+    # Authentication
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=True)  # Nullable for OAuth users
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Preferences (compact summary for hot memory)
     preferences: Mapped[dict] = mapped_column(JSON, default=dict)
     working_hours: Mapped[dict] = mapped_column(JSON, default=dict)  # {"start": "09:00", "end": "17:00"}
@@ -107,6 +112,7 @@ class User(Base):
     preferences_history = relationship("UserPreference", back_populates="user", cascade="all, delete-orphan")
     memories = relationship("Memory", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
+    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
 
 
 class Task(Base):
@@ -424,4 +430,38 @@ class UndoAction(Base):
 
     __table_args__ = (
         Index("ix_undo_session", "session_id", "created_at"),
+    )
+
+
+class APIKey(Base):
+    """API keys for programmatic access."""
+    __tablename__ = "api_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)  # User-friendly name
+    key_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)  # Hashed key
+    key_prefix: Mapped[str] = mapped_column(String(10), nullable=False)  # First 8 chars for identification
+
+    # Permissions
+    scopes: Mapped[list] = mapped_column(ARRAY(String), default=list)  # ["tasks:read", "tasks:write", etc.]
+
+    # Rate limiting
+    rate_limit: Mapped[int] = mapped_column(Integer, default=1000)  # Requests per hour
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Lifecycle
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="api_keys")
+
+    __table_args__ = (
+        Index("ix_api_keys_user", "user_id"),
+        Index("ix_api_keys_prefix", "key_prefix"),
     )

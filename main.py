@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import get_settings
 from src.api import router
+from src.auth.routes import router as auth_router
 from src.database.connection import async_engine, init_db
 from src.skills.registry import get_registry
 from src.reminders.engine import get_reminder_engine
@@ -90,6 +91,7 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
 
 
 @app.get("/")

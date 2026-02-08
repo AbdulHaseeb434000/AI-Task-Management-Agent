@@ -1,0 +1,122 @@
+# AI Task Management Agent - Docker Compose
+# Use for local development and testing
+
+version: "3.9"
+
+services:
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taskagent-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/taskagent
+      - DATABASE_URL_SYNC=postgresql+psycopg2://postgres:postgres@db:5432/taskagent
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-development-secret-key-change-in-production}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # Mount source for hot reload during development
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - ./main.py:/app/main.py:ro
+    networks:
+      - taskagent-network
+    restart: unless-stopped
+
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    container_name: taskagent-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=taskagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskagent-network
+    restart: unless-stopped
+
+  # Redis for caching and background jobs
+  redis:
+    image: redis:7-alpine
+    container_name: taskagent-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskagent-network
+    restart: unless-stopped
+
+  # Database migrations (one-time)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taskagent-migrate
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/taskagent
+      - DATABASE_URL_SYNC=postgresql+psycopg2://postgres:postgres@db:5432/taskagent
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - taskagent-network
+    profiles:
+      - tools
+
+  # Celery worker for background tasks
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taskagent-worker
+    command: ["python", "-m", "celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info"]
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/taskagent
+      - DATABASE_URL_SYNC=postgresql+psycopg2://postgres:postgres@db:5432/taskagent
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - taskagent-network
+    profiles:
+      - full
+    restart: unless-stopped
+
+networks:
+  taskagent-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
