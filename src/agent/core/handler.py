@@ -9,6 +9,8 @@ The Orchestrator handles all:
 - Task breakdown
 - Specialist delegation
 - Response generation
+
+Guardrails are applied at the SDK level (parallel execution).
 """
 
 import uuid
@@ -37,7 +39,7 @@ class AgentHandler:
     Simplified flow:
     1. Load/create conversation context
     2. Pass message directly to Orchestrator
-    3. Orchestrator autonomously handles everything
+    3. Orchestrator autonomously handles everything (with SDK guardrails)
     4. Save conversation state
     5. Return response
     """
@@ -63,6 +65,7 @@ class AgentHandler:
 
         The message is passed directly to the Orchestrator which
         autonomously analyzes, plans, delegates, and responds.
+        SDK-native guardrails run in parallel for security.
 
         Args:
             user_id: The user's ID.
@@ -82,10 +85,9 @@ class AgentHandler:
         context = await self.conversation_handler.process_message(context, message)
 
         # Step 3: Build context-aware prompt for orchestrator
-        # Include recent conversation history for continuity
         orchestrator_input = self._build_orchestrator_input(message, context)
 
-        # Step 4: Run the orchestrator (handles everything autonomously)
+        # Step 4: Run the orchestrator (guardrails handled by SDK)
         result = await run_orchestrator(
             user_request=orchestrator_input,
             user_id=str(user_id),
@@ -94,7 +96,17 @@ class AgentHandler:
         # Step 5: Extract response
         response_text = result.get("response", "I encountered an issue processing your request.")
         blocked = result.get("blocked", False)
-        violations = result.get("violations", [])
+        guardrail_info = result.get("guardrail_info", {})
+
+        # Extract violations from guardrail info
+        violations = []
+        if guardrail_info:
+            if guardrail_info.get("input_blocked"):
+                input_reason = guardrail_info.get("input_reason", {})
+                violations.append(f"Input blocked: {input_reason.get('reason', 'Security concern')}")
+            if guardrail_info.get("output_blocked"):
+                output_reason = guardrail_info.get("output_reason", {})
+                violations.append(f"Output blocked: {output_reason.get('reason', 'Security concern')}")
 
         # Step 6: Add response to conversation
         context = await self.conversation_handler.add_response(
@@ -102,7 +114,7 @@ class AgentHandler:
             response=response_text,
             metadata={
                 "blocked": blocked,
-                "violations": violations,
+                "guardrail_info": guardrail_info,
             },
         )
 
@@ -114,9 +126,9 @@ class AgentHandler:
             response=response_text,
             actions_taken=self._extract_actions(response_text),
             suggestions=self._extract_suggestions(response_text),
-            pending_approvals=[],  # TODO: Extract from response if applicable
+            pending_approvals=[],
             blocked=blocked,
-            violations=violations,
+            violations=violations if violations else None,
         )
 
     def _build_orchestrator_input(
@@ -134,7 +146,7 @@ class AgentHandler:
             Formatted input string for the orchestrator.
         """
         # For simple messages, just return the message
-        if len(context.history) <= 2:  # Just the current exchange
+        if len(context.history) <= 2:
             return message
 
         # For ongoing conversations, include recent context
@@ -169,7 +181,6 @@ class AgentHandler:
         """
         actions = []
 
-        # Look for common action patterns in the response
         action_markers = [
             "Created task",
             "Updated task",
@@ -198,9 +209,7 @@ class AgentHandler:
         """
         suggestions = []
 
-        # Look for "Next Steps" section
         if "### Next Steps" in response or "## Next Steps" in response:
-            # Extract lines after "Next Steps"
             lines = response.split("\n")
             in_next_steps = False
             for line in lines:
@@ -208,12 +217,12 @@ class AgentHandler:
                     in_next_steps = True
                     continue
                 if in_next_steps:
-                    if line.startswith("#"):  # New section
+                    if line.startswith("#"):
                         break
                     if line.strip().startswith("-") or line.strip().startswith("•"):
                         suggestions.append(line.strip().lstrip("-•").strip())
 
-        return suggestions[:3]  # Max 3 suggestions
+        return suggestions[:3]
 
     async def get_conversation_summary(
         self,
@@ -253,7 +262,7 @@ class AgentHandler:
         await self.conversation_handler.end_conversation(context)
 
 
-# Global handler instance (can be overridden in tests)
+# Global handler instance
 _handler_instance: Optional[AgentHandler] = None
 
 
