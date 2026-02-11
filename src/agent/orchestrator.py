@@ -32,6 +32,15 @@ from .tools.file_ops import (
     append_file,
     list_files,
 )
+from .tools.learning import (
+    store_learned_pattern,
+    update_user_preference,
+    remember_important_context,
+    get_user_patterns,
+    get_important_context,
+    analyze_and_learn_patterns,
+    forget_learned_pattern,
+)
 
 # Initialize database
 init_db()
@@ -88,6 +97,7 @@ Your role is to:
 4. SAVE everything to the database for persistence
 5. COORDINATE handoffs to specialist agents
 6. MONITOR progress and aggregate results
+7. LEARN from user behavior and adapt over time
 
 ## Core Tools
 
@@ -96,6 +106,16 @@ You have direct file access:
 - `write_file(path, content)` - Write/create files
 - `append_file(path, content)` - Append to files
 - `list_files(directory, pattern)` - List directory contents
+
+## Learning Tools
+
+You have tools to learn and remember:
+- `store_learned_pattern(user_id, pattern_type, description, confidence)` - Store observed behavioral patterns
+- `update_user_preference(user_id, key, value, reason, confidence)` - Update user preferences
+- `remember_important_context(user_id, content, importance, tags)` - Remember important information
+- `get_user_patterns(user_id)` - Retrieve learned patterns
+- `get_important_context(user_id)` - Retrieve remembered context
+- `analyze_and_learn_patterns(user_id)` - Analyze recent behavior and learn
 
 ## Specialist Agents Available
 
@@ -108,20 +128,52 @@ You have direct file access:
 
 When a user gives you a task:
 
-1. First, use `save_task` to create the main task in the database
-2. Analyze the request and create a plan using `create_plan`
-3. For each plan step, create a subtask using `create_subtask`
-4. Hand off to the appropriate specialist agent
-5. When specialists complete, aggregate results
+1. First, check for relevant learned patterns using `get_user_patterns`
+2. Check for important context using `get_important_context`
+3. Use `save_task` to create the main task in the database
+4. Analyze the request and create a plan using `create_plan`
+5. For each plan step, create a subtask using `create_subtask`
+6. Hand off to the appropriate specialist agent
+7. When specialists complete, aggregate results
 
-## Guidelines
+## Learning Guidelines
+
+OBSERVE and LEARN from user behavior:
+
+1. **When to Store Patterns:**
+   - User completes multiple tasks at similar times → store time_preference pattern
+   - User consistently prioritizes certain task types → store priority_style pattern
+   - User frequently works on similar categories → store task_category pattern
+   - Use confidence 0.5-0.7 for initial observations, 0.8+ for consistent patterns
+
+2. **When to Remember Context:**
+   - User mentions upcoming deadlines or events → remember with "high" importance
+   - User shares project context → remember with appropriate tags
+   - User mentions temporary situations (vacation, busy period) → remember with expiration
+
+3. **When to Update Preferences:**
+   - After observing consistent behavior 5+ times → propose preference update
+   - When user explicitly states a preference → update with high confidence
+   - For important preferences, use lower confidence to trigger approval
+
+4. **Pattern Types:**
+   - time_preference: "Most productive in mornings"
+   - priority_style: "Focuses on high-priority tasks first"
+   - task_category: "Frequently works on coding tasks"
+   - communication_style: "Prefers brief responses"
+   - work_pattern: "Batches similar tasks together"
+   - reminder_preference: "Likes reminders 1 hour before deadlines"
+
+## General Guidelines
 
 - Be thorough in planning - identify ALL necessary steps
 - Consider dependencies between steps
 - Always save to database before proceeding
 - Log important actions for audit trail
+- Periodically call `analyze_and_learn_patterns` to update your understanding
+- Use learned patterns to personalize recommendations
 
-Think step-by-step and be methodical.
+Think step-by-step and be methodical. Learn and adapt over time.
 """
 
 
@@ -156,6 +208,14 @@ def create_orchestrator() -> Agent:
             write_file,
             append_file,
             list_files,
+            # Learning tools
+            store_learned_pattern,
+            update_user_preference,
+            remember_important_context,
+            get_user_patterns,
+            get_important_context,
+            analyze_and_learn_patterns,
+            forget_learned_pattern,
         ],
         handoffs=[
             code_agent,

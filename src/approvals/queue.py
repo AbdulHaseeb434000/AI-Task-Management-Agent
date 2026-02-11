@@ -448,6 +448,12 @@ class ApprovalQueue:
             title = action_data.get("title", "")
             return f"GitHub: {title}"
 
+        if action_type == "preference.update":
+            key = action_data.get("preference_key", "unknown")
+            new_value = action_data.get("new_value", "")
+            reason = action_data.get("reason", "")
+            return f"Update preference '{key}' to '{new_value}'. Reason: {reason}"
+
         return action_type
 
     async def cancel(
@@ -503,8 +509,11 @@ _queue: Optional[ApprovalQueue] = None
 
 
 def get_approval_queue() -> ApprovalQueue:
-    """Get the global approval queue."""
+    """Get the global approval queue with default executors registered."""
     global _queue
     if _queue is None:
         _queue = ApprovalQueue()
+        # Register default executors
+        from src.approvals.executors import register_default_executors
+        register_default_executors(_queue)
     return _queue
