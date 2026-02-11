@@ -7,8 +7,9 @@ These tools allow the agent to:
 - Analyze behavior and learn patterns
 """
 
+import json
 import uuid
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
 from agents import function_tool
 
@@ -25,7 +26,7 @@ async def store_learned_pattern(
     pattern_type: str,
     description: str,
     confidence: float,
-) -> Dict[str, Any]:
+) -> str:
     """Store a learned pattern about the user's behavior.
 
     Call this when you observe a consistent pattern in the user's behavior.
@@ -47,7 +48,7 @@ async def store_learned_pattern(
             Use 0.5-0.7 for initial observations, 0.8+ for consistent patterns.
 
     Returns:
-        Dict with pattern details including id, observation_count, and confidence.
+        JSON string with pattern details including id, observation_count, and confidence.
 
     Example:
         >>> await store_learned_pattern(
@@ -64,7 +65,7 @@ async def store_learned_pattern(
         description=description,
         confidence=confidence,
     )
-    return pattern.to_dict()
+    return json.dumps(pattern.to_dict(), default=str)
 
 
 @function_tool
@@ -74,7 +75,7 @@ async def update_user_preference(
     new_value: str,
     reason: str,
     confidence: float = 0.8,
-) -> Dict[str, Any]:
+) -> str:
     """Update a user preference based on observed behavior.
 
     Some preferences require user approval before changing:
@@ -97,7 +98,7 @@ async def update_user_preference(
         confidence: How confident you are (0.0 to 1.0).
 
     Returns:
-        Dict with:
+        JSON string with:
             - preference_key: The key that was updated
             - old_value: Previous value
             - new_value: New value
@@ -121,14 +122,14 @@ async def update_user_preference(
         reason=reason,
         confidence=confidence,
     )
-    return {
+    return json.dumps({
         "preference_key": result.preference_key,
         "old_value": result.old_value,
         "new_value": result.new_value,
         "requires_approval": result.requires_approval,
         "reason": result.reason,
         "confidence": result.confidence,
-    }
+    }, default=str)
 
 
 @function_tool
@@ -136,9 +137,9 @@ async def remember_important_context(
     user_id: str,
     content: str,
     importance: str = "medium",
-    tags: Optional[List[str]] = None,
+    tags_json: Optional[str] = None,
     expires_in_days: Optional[int] = None,
-) -> Dict[str, Any]:
+) -> str:
     """Store important context for future conversations.
 
     Use this to remember information that will be useful later:
@@ -156,21 +157,28 @@ async def remember_important_context(
             - "medium": Expires in 7 days
             - "high": Expires in 30 days
             - "permanent": Never expires
-        tags: Optional tags for easier retrieval later.
-            Example: ["project", "deadline", "q4"]
+        tags_json: Optional JSON array of tags for easier retrieval.
+            Example: '["project", "deadline", "q4"]'
         expires_in_days: Custom expiration (overrides importance default).
 
     Returns:
-        Dict with context details including id and expiration.
+        JSON string with context details including id and expiration.
 
     Example:
         >>> await remember_important_context(
         ...     user_id="abc-123",
         ...     content="User mentioned they're on vacation next week",
         ...     importance="high",
-        ...     tags=["vacation", "schedule"]
+        ...     tags_json='["vacation", "schedule"]'
         ... )
     """
+    tags = None
+    if tags_json:
+        try:
+            tags = json.loads(tags_json)
+        except json.JSONDecodeError:
+            pass
+
     learning = get_learning_module()
     context = await learning.remember_important_context(
         user_id=uuid.UUID(user_id),
@@ -179,14 +187,14 @@ async def remember_important_context(
         tags=tags,
         expires_in_days=expires_in_days,
     )
-    return {
+    return json.dumps({
         "id": str(context.id),
         "content": context.content,
         "importance": context.importance.value,
         "created_at": context.created_at.isoformat(),
         "expires_at": context.expires_at.isoformat() if context.expires_at else None,
         "tags": context.tags,
-    }
+    }, default=str)
 
 
 @function_tool
@@ -194,7 +202,7 @@ async def get_user_patterns(
     user_id: str,
     pattern_type: Optional[str] = None,
     min_confidence: float = 0.5,
-) -> List[Dict[str, Any]]:
+) -> str:
     """Get learned patterns about the user.
 
     Use this to retrieve what you've learned about the user's behavior
@@ -206,14 +214,14 @@ async def get_user_patterns(
         min_confidence: Minimum confidence threshold (default 0.5).
 
     Returns:
-        List of pattern dicts, sorted by confidence (highest first).
+        JSON string of list of pattern dicts, sorted by confidence (highest first).
 
     Example:
         >>> patterns = await get_user_patterns(
         ...     user_id="abc-123",
         ...     pattern_type="time_preference"
         ... )
-        >>> # Returns: [{"description": "Most productive before 10am", "confidence": 0.85, ...}]
+        >>> # Returns: '[{"description": "Most productive before 10am", "confidence": 0.85, ...}]'
     """
     learning = get_learning_module()
     patterns = await learning.get_learned_patterns(
@@ -221,38 +229,45 @@ async def get_user_patterns(
         pattern_type=pattern_type,
         min_confidence=min_confidence,
     )
-    return [p.to_dict() for p in patterns]
+    return json.dumps([p.to_dict() for p in patterns], default=str)
 
 
 @function_tool
 async def get_important_context(
     user_id: str,
-    tags: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
+    tags_json: Optional[str] = None,
+) -> str:
     """Get important context remembered for the user.
 
     Use this to retrieve context that was stored for future reference.
 
     Args:
         user_id: The user's UUID as a string.
-        tags: Optional filter by tags.
+        tags_json: Optional JSON array of tags to filter by.
 
     Returns:
-        List of context items (non-expired), most recent first.
+        JSON string of list of context items (non-expired), most recent first.
 
     Example:
         >>> context = await get_important_context(
         ...     user_id="abc-123",
-        ...     tags=["deadline"]
+        ...     tags_json='["deadline"]'
         ... )
     """
+    tags = None
+    if tags_json:
+        try:
+            tags = json.loads(tags_json)
+        except json.JSONDecodeError:
+            pass
+
     learning = get_learning_module()
     contexts = await learning.get_important_context(
         user_id=uuid.UUID(user_id),
         tags=tags,
         include_expired=False,
     )
-    return [
+    return json.dumps([
         {
             "id": str(c.id),
             "content": c.content,
@@ -262,14 +277,14 @@ async def get_important_context(
             "tags": c.tags,
         }
         for c in contexts
-    ]
+    ], default=str)
 
 
 @function_tool
 async def analyze_and_learn_patterns(
     user_id: str,
     recent_days: int = 7,
-) -> Dict[str, Any]:
+) -> str:
     """Analyze recent user behavior and learn patterns.
 
     Call this periodically or when you want to update your understanding
@@ -283,30 +298,30 @@ async def analyze_and_learn_patterns(
         recent_days: Number of days to analyze (default 7).
 
     Returns:
-        Dict with:
+        JSON string with:
             - patterns_learned: Number of patterns learned/updated
             - patterns: List of pattern details
 
     Example:
         >>> result = await analyze_and_learn_patterns(user_id="abc-123")
-        >>> # Returns: {"patterns_learned": 2, "patterns": [...]}
+        >>> # Returns: '{"patterns_learned": 2, "patterns": [...]}'
     """
     learning = get_learning_module()
     patterns = await learning.analyze_and_learn(
         user_id=uuid.UUID(user_id),
         recent_days=recent_days,
     )
-    return {
+    return json.dumps({
         "patterns_learned": len(patterns),
         "patterns": [p.to_dict() for p in patterns],
-    }
+    }, default=str)
 
 
 @function_tool
 async def forget_learned_pattern(
     user_id: str,
     pattern_id: str,
-) -> Dict[str, bool]:
+) -> str:
     """Forget a learned pattern.
 
     Use this if a pattern is no longer accurate or the user requests it.
@@ -316,14 +331,14 @@ async def forget_learned_pattern(
         pattern_id: The pattern's UUID to forget.
 
     Returns:
-        Dict with success status.
+        JSON string with success status.
     """
     learning = get_learning_module()
     success = await learning.forget_pattern(
         user_id=uuid.UUID(user_id),
         pattern_id=uuid.UUID(pattern_id),
     )
-    return {"success": success}
+    return json.dumps({"success": success})
 
 
 # Export all tools

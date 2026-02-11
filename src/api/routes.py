@@ -357,6 +357,8 @@ async def chat(
         actions_taken=result.actions_taken,
         suggestions=result.suggestions,
         pending_approvals=result.pending_approvals,
+        blocked=result.blocked,
+        violations=result.violations,
     )
 
 

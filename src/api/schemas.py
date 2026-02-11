@@ -166,9 +166,11 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     session_id: UUID
     response: str
-    actions_taken: List[Dict[str, Any]] = Field(default_factory=list)
+    actions_taken: List[str] = Field(default_factory=list)
     suggestions: List[str] = Field(default_factory=list)
-    pending_approvals: List[Dict[str, Any]] = Field(default_factory=list)
+    pending_approvals: List[str] = Field(default_factory=list)
+    blocked: bool = False
+    violations: Optional[List[str]] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 

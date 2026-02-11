@@ -1,7 +1,9 @@
 """Database interaction tools for agents."""
 
+import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -25,78 +27,95 @@ def save_task(
     title: str,
     description: str,
     priority: int = 3,
-    tags: list[str] = None,
-    metadata: dict = None,
-) -> dict:
+    tags_json: Optional[str] = None,
+    metadata_json: Optional[str] = None,
+) -> str:
     """Save a new task to the database.
 
     Args:
         title: Short task title
         description: Full task description
         priority: Priority 1-5 (5 = highest)
-        tags: Optional list of tags for categorization
-        metadata: Optional additional context
+        tags_json: Optional JSON array of tags, e.g. '["urgent", "coding"]'
+        metadata_json: Optional JSON object for additional context
 
     Returns:
-        The created task as a dictionary with its ID
+        JSON string of the created task with its ID
     """
+    tags = []
+    metadata = {}
+
+    if tags_json:
+        try:
+            tags = json.loads(tags_json)
+        except json.JSONDecodeError:
+            pass
+
+    if metadata_json:
+        try:
+            metadata = json.loads(metadata_json)
+        except json.JSONDecodeError:
+            pass
+
     task = Task(
         title=title,
         description=description,
         priority=priority,
-        tags=tags or [],
-        metadata=metadata or {},
+        tags=tags,
+        metadata=metadata,
     )
     task_ops.create_task(task)
-    return task.model_dump()
+    return json.dumps(task.model_dump(), default=str)
 
 
 @function_tool
 def save_plan(
     task_id: str,
     strategy: str,
-    steps: list[dict],
-) -> dict:
+    steps_json: str,
+) -> str:
     """Save an execution plan to the database.
 
     Args:
         task_id: The task this plan is for
         strategy: High-level approach description
-        steps: List of plan steps
+        steps_json: JSON array of plan steps
 
     Returns:
-        The created plan as a dictionary
+        JSON string of the created plan
     """
     from .planning import create_plan
-    return create_plan(task_id, strategy, steps)
+    return create_plan(task_id, strategy, steps_json)
 
 
 @function_tool
-def get_task_by_id(task_id: str) -> dict | None:
+def get_task_by_id(task_id: str) -> str:
     """Retrieve a task from the database.
 
     Args:
         task_id: The ID of the task
 
     Returns:
-        The task as a dictionary, or None if not found
+        JSON string of the task, or error if not found
     """
     task = task_ops.get_task(task_id)
-    return task.model_dump() if task else None
+    if task:
+        return json.dumps(task.model_dump(), default=str)
+    return json.dumps({"error": f"Task {task_id} not found"})
 
 
 @function_tool
-def get_subtasks_for_task(parent_id: str) -> list[dict]:
+def get_subtasks_for_task(parent_id: str) -> str:
     """Get all subtasks for a parent task.
 
     Args:
         parent_id: The parent task ID
 
     Returns:
-        List of subtasks as dictionaries
+        JSON string of list of subtasks
     """
     subtasks = task_ops.get_subtasks(parent_id)
-    return [t.model_dump() for t in subtasks]
+    return json.dumps([t.model_dump() for t in subtasks], default=str)
 
 
 @function_tool
@@ -104,12 +123,12 @@ def log_execution(
     task_id: str,
     agent_type: str,
     action: str,
-    input_data: str = None,
-    output_data: str = None,
+    input_data: Optional[str] = None,
+    output_data: Optional[str] = None,
     status: str = "success",
-    error_message: str = None,
-    duration_ms: int = None,
-) -> dict:
+    error_message: Optional[str] = None,
+    duration_ms: Optional[int] = None,
+) -> str:
     """Log an execution action for auditing.
 
     Args:
@@ -123,7 +142,7 @@ def log_execution(
         duration_ms: How long the action took
 
     Returns:
-        The created log entry as a dictionary
+        JSON string of the created log entry
     """
     log = ExecutionLog(
         task_id=task_id,
@@ -136,46 +155,46 @@ def log_execution(
         duration_ms=duration_ms,
     )
     log_ops.create_log(log)
-    return log.model_dump()
+    return json.dumps(log.model_dump(), default=str)
 
 
 @function_tool
-def get_execution_logs(task_id: str) -> list[dict]:
+def get_execution_logs(task_id: str) -> str:
     """Get all execution logs for a task.
 
     Args:
         task_id: The task ID
 
     Returns:
-        List of execution logs
+        JSON string of list of execution logs
     """
     logs = log_ops.get_logs_for_task(task_id)
-    return [log.model_dump() for log in logs]
+    return json.dumps([log.model_dump() for log in logs], default=str)
 
 
 @function_tool
-def get_tasks_by_status(status: str) -> list[dict]:
+def get_tasks_by_status(status: str) -> str:
     """Get all tasks with a specific status.
 
     Args:
         status: The status to filter by (pending, in_progress, completed, failed)
 
     Returns:
-        List of matching tasks
+        JSON string of list of matching tasks
     """
     tasks = task_ops.get_tasks_by_status(TaskStatus(status))
-    return [t.model_dump() for t in tasks]
+    return json.dumps([t.model_dump() for t in tasks], default=str)
 
 
 @function_tool
-def get_tasks_for_agent(agent_type: str) -> list[dict]:
+def get_tasks_for_agent(agent_type: str) -> str:
     """Get all tasks assigned to a specific agent type.
 
     Args:
         agent_type: The agent type (code, research, writing, communication)
 
     Returns:
-        List of assigned tasks
+        JSON string of list of assigned tasks
     """
     tasks = task_ops.get_tasks_by_agent(AgentType(agent_type))
-    return [t.model_dump() for t in tasks]
+    return json.dumps([t.model_dump() for t in tasks], default=str)
